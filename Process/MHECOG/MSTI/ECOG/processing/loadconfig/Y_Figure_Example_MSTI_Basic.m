@@ -1,0 +1,116 @@
+clc; close all;
+MATPATH = MATPATHS{mIndex};
+FFTMethod_idx = 3; %1: power(dB); 2: magnitude; 3:amplitude
+FFTMethodPool = ["power", "magnitude", "amplitude"];
+FFTMethod = FFTMethodPool(FFTMethod_idx);
+fftScale = [60, 60; 450, 450; 50, 50];
+if contains(MATPATH, "chouchou")
+    monkeyId = 1;  % 1：chouchou; 2：xiaoxiao
+    monkeyStr = "CC";
+    badCHs = {[],[]};
+elseif contains(MATPATH, "xiaoxiao")
+    monkeyId = 2;
+    monkeyStr = "XX";
+    badCHs = {[],[]};   
+end
+
+AREANAME = ["AC", "PFC"];
+params.posIndex = find(matches(AREANAME, areaSel)); % 1-AC, 2-PFC
+params.processFcn = @PassiveProcess_clickTrainContinuous;
+AREANAME = AREANAME(params.posIndex);
+badCHs = badCHs{params.posIndex};
+
+%% load parameters
+MSTIParams = Y_ParseMSTIParams(protocolStr);
+parseStruct(MSTIParams);
+
+%% process
+temp = string(split(MATPATH, '\'));
+DateStr = temp(end - 1);
+Protocol = temp(end - 2);
+FIGPATH = strcat(rootPathFig, "Figure_", protStr,"\", DateStr, "_", AREANAME, "\Figures\");
+
+DateStrtemp = regexpi(DateStr, "\d*", "match");
+if str2double(DateStrtemp(1)) >= 20230227
+    MSTIParams.patch = "matchIssue";
+else
+    MSTIParams.patch = "bankIssue";
+end
+tic
+[trialAll, trialsECOG_Merge] =  mergeMSTITrialsECOG(MATPATH, params.posIndex, MSTIParams);
+toc
+
+
+%% seperate groups
+groupN = 0;
+for gIndex = 1 : size(S1_S2, 1) % diff BG
+    for sIndex = 1 : size(S1_S2, 2) %% S1 or S2
+        groupN = groupN + 1;
+        DevStr = S1_S2(gIndex, sIndex);   comparePool(groupN).DevStr = DevStr;
+        StdStr = S1_S2(gIndex, 2-sIndex+1);  comparePool(groupN).StdStr = StdStr;
+        comparePool(groupN).Odd_Dev_Index = find(cell2mat(cellfun(@(x) strcmpi(x(2), DevStr)&~strcmpi(x(1), "ManyStd"), cellfun(@(x) string(strsplit(x, "_")), stimStrs, "uni", false)', "UniformOutput", false)));
+        comparePool(groupN).ManyStd_Dev_Index = find(cell2mat(cellfun(@(x) strcmpi(x(2), DevStr)&strcmpi(x(1), "ManyStd"), cellfun(@(x) string(strsplit(x, "_")), stimStrs, "uni", false)', "UniformOutput", false)));
+        comparePool(groupN).Odd_Std_Index = find(cell2mat(cellfun(@(x) strcmpi(x(2), StdStr)&~strcmpi(x(1), "ManyStd"), cellfun(@(x) string(strsplit(x, "_")), stimStrs, "uni", false)', "UniformOutput", false)));
+    end
+end
+
+%% ICA
+% align to certain duration
+ICPATH = strrep(FIGPATH, "Figures", "ICA");
+mkdir(ICPATH);
+ICAName = strcat(ICPATH, "comp.mat");
+trialsECOG_MergeTemp = trialsECOG_Merge;
+channels = 1 : size(trialsECOG_Merge{1}, 1);
+
+if ~exist(ICAName, "file")
+    chs2doICA = channels;
+    chs2doICA(ismember(chs2doICA, badCHs)) = [];
+    [comp, ICs, FigTopoICA, FigWave, FigIC] = ICA_Population(trialsECOG_MergeTemp, fs, Window, chs2doICA);
+    temp = validateInput(['Input bad channel number (empty for default: ', num2str(badCHs'), '): '], @(x) validateattributes(x, {'numeric'}, {'2d', 'integer', 'positive'}));
+    icaOpt = "on";
+    if ~isempty(temp)
+        badCHs = unique([badCHs; reshape(temp, [numel(temp), 1])]);
+    end
+    compT = comp;
+    compT.topo(:, ~ismember(1:size(compT.topo, 2), ICs)) = 0;
+
+    if length(chs2doICA) < length(channels) || ~isempty(temp)
+        
+        trialsECOG_MergeTemp = cellfun(@(x) x(chs2doICA, :), trialsECOG_MergeTemp, "UniformOutput", false);
+        trialsECOG_MergeTemp = reconstructData(trialsECOG_MergeTemp, comp, ICs);
+        trialsECOG_Merge = cellfun(@(x) insertRows(x, channels(ismember(channels, badCHs) & ~ismember(channels, chs2doICA))), trialsECOG_MergeTemp, "UniformOutput", false);
+    else
+        trialsECOG_Merge = cellfun(@(x) compT.topo * comp.unmixing * x, trialsECOG_MergeTemp, "UniformOutput", false);
+    end
+
+    print(FigWave(2), strcat(ICPATH, "ICA_IC_Rescutction_", protStr), "-djpeg", "-r200");
+    print(FigTopoICA, strcat(ICPATH, "ICA_IC_Topo_", protStr), "-djpeg", "-r200");
+    print(FigIC, strcat(ICPATH, "ICA_IC_Raw_", protStr), "-djpeg", "-r200");
+    close(FigTopoICA); close(FigWave); close(FigIC);
+    save(ICAName, "compT", "comp", "ICs", "icaOpt", "chs2doICA", "badCHs", "-mat");
+else
+    load(ICAName);
+    if strcmpi(icaOpt, "on")
+        trialsECOG_MergeTemp = cellfun(@(x) x(chs2doICA, :), trialsECOG_MergeTemp, "UniformOutput", false);
+        trialsECOG_MergeTemp = reconstructData(trialsECOG_MergeTemp, comp, ICs);
+        trialsECOG_Merge = cellfun(@(x) insertRows(x, channels(ismember(channels, badCHs) & ~ismember(channels, chs2doICA))), trialsECOG_MergeTemp, "UniformOutput", false);
+
+    else
+        trialsECOG_Merge = cellfun(@(x) compT.topo * comp.unmixing * x, trialsECOG_MergeTemp, "UniformOutput", false);
+    end
+
+end
+trialsECOG_Merge = interpolateBadChs(trialsECOG_Merge,  badCHs);
+
+%% double exclude
+[~, ~, idx] = excludeTrialsChs(trialsECOG_Merge,0.1, Window, DevPlotWin);
+trialAll = trialAll(idx);
+trialsECOG_Merge = trialsECOG_Merge(idx);
+%% filter
+trialsECOG_Merge_Filtered = ECOGFilter(trialsECOG_Merge, fhp2, flp2, fs);
+%% lag
+tSD = round(diff(Std_Dev_Onset(:, end-1:end), 1, 2) / 1000 * fs);
+trialsECOG_Merge_Lag = cellfun(@(x, y) [zeros(size(x, 1), tSD(y)), x(:, 1:end-tSD(y))], trialsECOG_Merge, num2cell(vertcat(trialAll.devOrdr)), "UniformOutput", false);
+% run("MSTI_Basic_sig.m");
+
+

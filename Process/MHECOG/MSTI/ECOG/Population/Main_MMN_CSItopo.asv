@@ -1,0 +1,73 @@
+   close all; clc; clear;
+%%%%%%%%%%%Fig.MSTI:CSI Topo
+addpath(genpath("I:\Programe\ECOGProcess"), "-begin");
+rmpath(genpath("I:\Programe\Tool_box"));
+
+AREAS = ["AC", "PFC"];
+NAMES = ["cc", "xx"];
+AREASindex = 1;
+NAMESindex = 2;
+areaSel = AREAS(AREASindex);
+monkeyName = NAMES(NAMESindex);
+rootPathFig = 'I:\ANALYSIS_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\MSTI\';
+
+CSIWin = [0 200];% 0 for dev onset
+
+%% set protocols
+temp = dir(rootPathFig);
+temp(ismember(string({temp.name}'), [".", ".."])) = [];
+protocols = string({temp.name}');
+
+%% select data
+% areaSel = "AC";
+dateSel = [""];
+protSel = ["MSTI_BG-3o6_S1-3_S2-4o3_ISI_400_Dur_200_STDN_9"];
+
+for rIndex = 1 : length(protocols)
+
+    protPath = strcat(rootPathFig, protocols(rIndex), "\");
+    protPath = protPath(contains(protPath, protSel));
+    protocolStr = strrep(protocols(rIndex), 'Figure_', '');
+
+    if ~isempty(protPath)
+        temp = dir(protPath);
+        temp(ismember(string({temp.name}'), [".", ".."])) = [];
+    
+        TargetPATHS = cellfun(@(x) string([char(protPath), x, '\']), {temp.name}', "UniformOutput", false);
+        TargetPATHS = TargetPATHS(contains(string(TargetPATHS), monkeyName) & contains(string(TargetPATHS), dateSel) );
+    
+        temp = cellfun(@(x) strcat(x, "Figures", "\"), TargetPATHS, "UniformOutput", false);
+        MATPATHS = cellfun(@(x, y) strcat(x, "cdrPlot", "_", areaSel, ".mat"), temp, "uni", false);
+
+        for mIndex = 1:numel(MATPATHS)
+            cdrPlot = []; chMean = []; group = []; comparePool = [];
+            load(MATPATHS{mIndex}, "cdrPlot", "chMean", "group", "comparePool");
+            if monkeyName == "xx"
+                t = cdrPlot(1).XXWave(:, 1);
+                fs = (numel(cdrPlot(1).XXWave(:, 1)) - 1) / ((cdrPlot(1).XXWave(end, 1) - cdrPlot(1).XXWave(1, 1)) / 1000);
+            elseif monkeyName == "cc"
+                t = cdrPlot(1).CCWave(:, 1);
+                fs = (numel(cdrPlot(1).CCWave(:, 1)) - 1) / ((cdrPlot(1).CCWave(end, 1) - cdrPlot(1).CCWave(1, 1)) / 1000);
+            end
+
+            if contains(protocolStr, "MSTI")
+                %calculate CSI(rms)
+                tIndex = t > CSIWin(1) & t < CSIWin(2);
+                Devindex = cellfun(@isempty, cellfun(@(x) find(x(:,1) == zeros(64, 1)), {group.chMean}, "UniformOutput", false));
+                Stdindex = cellfun(@(x) ~isempty(x), cellfun(@(x) find(x(:,1) == zeros(64, 1)), {group.chMean}, "UniformOutput", false));
+                rms_temp = cellfun(@(x) rms(x(:, tIndex), 2), {group.chMean}, "UniformOutput", false)';
+                CSI_temp = changeCellRowNum(rms_temp);
+                CSI_topo = cellfun(@(x) (sum(x(Devindex)) - sum(x(Stdindex))) / (sum(x(Devindex)) + sum(x(Stdindex))), CSI_temp);
+                %plot CSI topo
+                FigCSITopo = plotTopo_Raw(CSI_topo, [8, 8]);
+                colormap(FigCSITopo, "jet");
+                pause(1);
+                set([FigCSITopo], "outerposition", [300, 100, 800, 670]);
+                scaleAxes(FigCSITopo, "c", [-0.3 0.3]);
+                
+            end
+        end
+    end
+end
+
+

@@ -1,0 +1,100 @@
+   close all; clc; clear;
+%%%%%%%%%%%Fig1.BaseICI:CRI
+addpath(genpath("I:\Programe\ECOGProcess"), "-begin");
+
+MonkeyID = 2;
+ROOTPATH = 'I:\ANALYSIS_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\';
+params.posIndex = 1; % 1-AC, 2-PFC
+params.processFcn = @PassiveProcess_clickTrainContinuous;
+AREANAME = ["AC", "PFC"];
+AREANAME = AREANAME(params.posIndex);
+Protocol = 'TITS_in_Osc';
+
+if MonkeyID == 1
+    monkeyStr = 'CC';
+%     DATEStrs = {'cc20230419_3'};
+%     fs_temp = [1000];
+%     MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat\chouchou\';
+    DATEStrs = {'cc20230426_2', 'cc20230502'};
+    fs_temp = [1000, 1200];
+    MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat_Nodft\chouchou\'; 
+    stimStrs = ["3-3o6ms", "15o2-18o24ms", "18o6_22o32ms", "22o8-27o36ms", "34o2-41o04ms"];        
+
+elseif MonkeyID == 2
+    monkeyStr = 'XX';
+%     DATEStrs = {'xx20230419_2'};
+%     fs_temp = [1000];
+%     MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat\xiaoxiao\';
+    DATEStrs = {'xx20230426_2', 'xx20230506', 'xx20230509_1',...
+         'xx20230511'};
+    fs_temp = [1000, 1200, 1200, 1200];
+    MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat_Nodft\xiaoxiao\';  
+    stimStrs = ["3-3o6ms", "14o4-17o28ms", "18o6_22o32ms", "22o8-27o36ms", "34o2-41o04ms"];        
+
+end
+MATPATHs = cellfun(@(x) [MATPATH, x, '\'], DATEStrs, "UniformOutput", false);
+
+% Synchronize response index
+SRIMethod = 2;
+CRIMethod = SRIMethod;
+if SRIMethod == 1
+    SRIMethodStr = 'Resp_devided_by_Spon';
+elseif SRIMethod == 2
+    SRIMethodStr = 'R_minus_S_devide_R_plus_S';
+end
+
+% FFT method
+FFTMethod = 2; %1: power(dB); 2: magnitude
+fftScale = [60, 60; 450, 450];
+% CRI
+quantWin_new = [0 300];%反应窗口
+sponWin_new = [-300 0];%基线窗口
+CRIScale = {[0.8, 2; -0.1 0.7], [0.8, 2; -0.1 0.3]};
+badCH_self = {[], []};
+badCh = {[], []};
+flp_filte = 10;
+fhp_filte = 0.1;
+icaOpt = "on";
+
+for mIndex = 1 : length(DATEStrs)
+
+    FIGPATH = [ROOTPATH, 'Single_Figure6_Osci_Control\', SRIMethodStr, '\', monkeyStr, '\', DATEStrs{mIndex}, '\'];
+    FIGPATH_localraw = [FIGPATH, 'Population\local_fft_raw\'];
+    FIGPATH_localzscore = [FIGPATH, 'Population\local_fft_zscore\'];
+    mkdir(FIGPATH);mkdir(FIGPATH_localraw);mkdir(FIGPATH_localzscore);
+
+    %% process
+    fs = fs_temp(mIndex);
+    run("tb_loadsingleData.m");
+    run("tb_ICA.m");
+    run("tb_interpolateBadChs");
+    trialsECOG_Merge_Filtered = ECOGFilter(trialsECOG_Merge, fhp_filte, flp_filte, fs);
+
+%% diff stim type
+    devType = unique([trialAll.devOrdr]);
+    % initialize
+    t = linspace(Window(1), Window(2), diff(Window) /1000 * fs + 1)';
+    %% FFT(local response)
+    for dIndex = 1:length(devType) 
+        tIndex = [trialAll.devOrdr] == devType(dIndex);
+        trials = trialAll(tIndex);
+        trialsECOG = trialsECOG_Merge(tIndex);
+
+        tIdx_whole = find(t > FFTWin_whole(1) & t < FFTWin_whole(2));
+        [ff_whole, PMean_whole{dIndex}, trialsFFT_whole{dIndex}]  = trialsECOGFFT(trialsECOG, fs, tIdx_whole, [], FFTMethod);
+        [tarMean_TB{dIndex}, idx_whole] = findWithinWindow(PMean_whole{dIndex}, ff_whole, [0.9, 1.1] * correspFreq(dIndex));
+        [tarMean_localICI1{dIndex}, idx_localICI1] = findWithinWindow(PMean_whole{dIndex}, ff_whole, [0.9, 1.1] * cursor1(dIndex));
+        [tarMean_localICI2{dIndex}, idx_localICI2] = findWithinWindow(PMean_whole{dIndex}, ff_whole, [0.9, 1.1] * cursor2(dIndex));
+
+        topo_TB{dIndex} = mean(tarMean_TB{dIndex},2);
+        topo_localICI1{dIndex} = mean(tarMean_localICI1{dIndex},2);
+        topo_localICI2{dIndex} = mean(tarMean_localICI2{dIndex},2);
+
+    end
+    % FFT_topo
+    FFT_topo_RawandZscore(topo_TB, "TB", stimStrs, FIGPATH_localraw, FIGPATH_localzscore);
+    FFT_topo_RawandZscore(topo_localICI1, "localICI1", stimStrs, FIGPATH_localraw, FIGPATH_localzscore);
+    FFT_topo_RawandZscore(topo_localICI2, "localICI2", stimStrs, FIGPATH_localraw, FIGPATH_localzscore);
+   
+
+end

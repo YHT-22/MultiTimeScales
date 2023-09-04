@@ -1,0 +1,156 @@
+close all; clc; clear;
+%%%%%%%%%%%Fig2.Insert:CSI
+addpath(genpath("I:\Programe\ECOGProcess"), "-begin");
+
+ROOTPATH = 'I:\ANALYSIS_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\';
+MonkeyID = 1;
+params.posIndex = 1; % 1-AC, 2-PFC
+params.processFcn = @PassiveProcess_clickTrainContinuous;
+AREANAME = ["AC", "PFC"];
+AREANAME = AREANAME(params.posIndex);
+Protocol = 'TITS_in_BasClick';
+protStr = Protocol;
+
+if MonkeyID == 1
+    monkeyStr = 'CC';
+    DATEStrs = {'cc20230415_1'};
+    fs_temp = [1000];
+    MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat\chouchou\';
+%     DATEStrs = {'cc20230505_2'};
+%     fs_temp = [1200];
+%     MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat_Nodft\chouchou\';
+    stimStrs = ["15o2_15o504ms", "15o2_15o2_N1ms", "15o2_15o2_N2ms", "15o2_15o2_N4ms", "15o2_15o2_N8ms"];
+elseif MonkeyID == 2
+    monkeyStr = 'XX';
+%     DATEStrs = {'xx20230415_1', 'xx20230424'};
+%     fs_temp = [1000, 1000];
+%     MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat\xiaoxiao\';
+    DATEStrs = {'xx20230508_1', 'xx20230509_2', 'xx20230510_2'};
+    fs_temp = [1200, 1200, 1200];
+    MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat_Nodft\xiaoxiao\';
+    stimStrs = ["14o4_14o688ms", "14o4_14o4_N1ms", "14o4_14o4_N2ms", "14o4_14o4_N4ms", "14o4_14o4_N8ms"];
+end
+MATPATHs = cellfun(@(x) [MATPATH, x, '\'], DATEStrs, "UniformOutput", false);
+
+% Synchronize response index
+SRIMethod = 2;
+CRIMethod = SRIMethod;
+if SRIMethod == 1
+    SRIMethodStr = 'Resp_devided_by_Spon';
+elseif SRIMethod == 2
+    SRIMethodStr = 'R_minus_S_devide_R_plus_S';
+end
+
+% FFT method
+FFTMethod = 2; %1: power(dB); 2: magnitude
+fftScale = [60, 60; 450, 450];
+badCH_self = {[], []};badCh = {[], []};
+%others
+yScale = [25 35];
+flp_filte = 40;
+fhp_filte = 0.1;
+icaOpt = "on";
+
+%% Mean
+for mIndex = 1:length(DATEStrs)
+    FIGPATH = [ROOTPATH, 'Single_Figure3_DiffICI\', SRIMethodStr, '\', monkeyStr, '\', DATEStrs{mIndex}, '\'];
+    FIGPATH_Insert = [FIGPATH, 'Population\Insert\'];
+    mkdir(FIGPATH);mkdir(FIGPATH_Insert);
+    %% process
+    fs = fs_temp(mIndex);
+    run("tb_loadsingleData_insert.m");
+    run("tb_ICA.m");
+    run("tb_interpolateBadChs");
+    trialsECOG_Merge_Filtered = ECOGFilter(trialsECOG_Merge, fhp_filte, flp_filte, fs);
+
+    %% diff stim type
+    % initionlize
+    devType = unique([trialAll.devOrdr]);
+    t = linspace(Window(1), Window(2), diff(Window) /1000 * fs + 1)';
+    for dIndex = 1 : length(devType)
+        tIndex = [trialAll.devOrdr] == devType(dIndex);
+        trials = trialAll(tIndex);
+        trialsECOG = trialsECOG_Merge(tIndex);
+        trialsECOG_filte = trialsECOG_Merge_Filtered(tIndex);
+
+        if dIndex == 1
+            chMean_temp{dIndex} = cell2mat(cellfun(@mean, changeCellRowNum(trialsECOG), 'UniformOutput', false));
+            % view raw wave and select channels
+            singleStim.chMean = chMean_temp{dIndex}; singleStim.color = 'k';
+            FigWave_review = plotRawWaveMulti_SPR(singleStim, Window, stimStrs(dIndex), [8, 8]);
+            setAxes(FigWave_review, 'yticklabel', '');
+            setAxes(FigWave_review, 'xticklabel', '');
+            setAxes(FigWave_review, 'visible', 'off');
+            setLine(FigWave_review, "YData", [-yScale(MonkeyID) yScale(MonkeyID)], "LineStyle", "--");
+            pause(1);
+            if exist(strcat(FIGPATH_Insert, "SelectCHs.mat"), "file")
+                load(strcat(FIGPATH_Insert, "SelectCHs.mat"));
+            else
+                SelectCHs = validateInput('SelectCHs(eg:[1,2,...]):', @(x) validateattributes(x, {'numeric'}, {'2d'}));  
+                save(strcat(FIGPATH_Insert, "SelectCHs.mat"), "SelectCHs");
+            end
+            close;
+        end
+
+        tempECOG = changeCellRowNum(trialsECOG);
+        tempECOG = cell2mat(tempECOG(SelectCHs));%所选channel的所有trial取平均
+        Mean_select{dIndex} = mean(tempECOG, 1);
+        SE_select{dIndex} = std(tempECOG)/sqrt(size(tempECOG,1));
+
+        tempECOG_filte = changeCellRowNum(trialsECOG_filte);
+        tempECOG_filte = cell2mat(tempECOG_filte(SelectCHs));%所选channel的所有trial取平均
+        Meanfilte_select{dIndex} = mean(tempECOG_filte, 1);
+        SEfilte_select{dIndex} = std(tempECOG_filte)/sqrt(size(tempECOG_filte,1));
+
+        popCDRplot(dIndex).info = stimStrs(dIndex);
+        popCDRplot(dIndex).Mean_select(:,1) = t';
+        popCDRplot(dIndex).Mean_select(:,2) = mean(tempECOG, 1)';
+        popCDRplot(dIndex).MeanandSE_select(:,1) = t';
+        popCDRplot(dIndex).MeanandSE_select(:,2) = mean(tempECOG, 1)' + (std(tempECOG)/sqrt(size(tempECOG_filte,1)))';
+        popCDRplot(dIndex).MeanandSE_select(:,3) = mean(tempECOG, 1)' - (std(tempECOG)/sqrt(size(tempECOG_filte,1)))';
+
+        popCDRplot(dIndex).Meanfilte_select(:,1) = t';
+        popCDRplot(dIndex).Meanfilte_select(:,2) = mean(tempECOG_filte, 1)';
+        popCDRplot(dIndex).MeanandSEfilte_select(:,1) = t';
+        popCDRplot(dIndex).MeanandSEfilte_select(:,2) = mean(tempECOG_filte, 1)' - (std(tempECOG_filte)/sqrt(size(tempECOG_filte,1)))';
+        popCDRplot(dIndex).MeanandSEfilte_select(:,3) = mean(tempECOG_filte, 1)' - (std(tempECOG_filte)/sqrt(size(tempECOG_filte,1)))';
+    end
+    save(strcat(FIGPATH_Insert, "popMean_CDRplot.mat"), "popCDRplot");
+
+    if ~exist(strcat(FIGPATH, "GroupMessage.mat"), "file")
+        error("老兄，那天数据可能没处理");
+    else
+        load(strcat(FIGPATH, "GroupMessage.mat"));
+    end
+
+    for gIndex = 1:numel(Test_Control_PairGroup) 
+        Test_GroupIdx(gIndex) = Test_Control_PairGroup{gIndex}(1);
+        Control_GroupIdx(gIndex) = Test_Control_PairGroup{gIndex}(2);
+
+        pairStim(2).chMean = Mean_select{Test_GroupIdx(gIndex)}; pairStim(2).color = 'r';
+        pairStim(1).chMean = Mean_select{Control_GroupIdx(gIndex)}; pairStim(1).color = 'b'; 
+        stimStr(gIndex) = strcat(stimStrs(Test_GroupIdx(gIndex)), "_", stimStrs(Control_GroupIdx(gIndex)));
+        FigWaveMean_pair(gIndex) = plotRawWaveMulti_SPR(pairStim, Window, strrep(stimStr(gIndex),"_","-"), [1,1]);
+
+        scaleAxes(FigWaveMean_pair(gIndex), "x", [-100 600]);
+        scaleAxes(FigWaveMean_pair(gIndex), "y", "on");
+        print(FigWaveMean_pair(gIndex), strcat(FIGPATH_Insert, stimStr(gIndex), "_CH_Trial_Mean"), "-djpeg", "-r200");
+
+        pairStim(2).chMean = Meanfilte_select{Test_GroupIdx(gIndex)}; pairStim(2).color = 'r';
+        pairStim(1).chMean = Meanfilte_select{Control_GroupIdx(gIndex)}; pairStim(1).color = 'b'; 
+        stimStr(gIndex) = strcat(stimStrs(Test_GroupIdx(gIndex)), "_", stimStrs(Control_GroupIdx(gIndex)));
+        FigWaveMeanfilte_pair(gIndex) = plotRawWaveMulti_SPR(pairStim, Window, strrep(stimStr(gIndex),"_","-"), [1,1]);
+
+        scaleAxes(FigWaveMeanfilte_pair(gIndex), "x", [-100 600]);
+        scaleAxes(FigWaveMeanfilte_pair(gIndex), "y", "on");
+        print(FigWaveMeanfilte_pair(gIndex), strcat(FIGPATH_Insert, stimStr(gIndex), "_CH_Trial_Meanfilte"), "-djpeg", "-r200");
+    end
+    close all;
+end
+
+
+
+
+
+
+
