@@ -23,7 +23,7 @@ t = linspace(Window(1), Window(2), diff(Window) /1000 * fs + 1)';
             scaleAxes(FigWave_filter_pair, "y", [-yScale(MonkeyID) yScale(MonkeyID)]);
             if exist("lines", "var")
                 addLines2Axes(FigWave_filter_pair, lines);
-            end
+            end 
             plotLayout(FigWave_filter_pair, params.posIndex + 2 * (MonkeyID - 1), 0.3);
             for gIndex = 1 : numel(Test_Control_PairGroup)
                 print(FigWave_filter_pair(gIndex), strcat(FIGPATH, Protocol, stimStr(gIndex), "_CRI_Wave_filter_pair"), "-djpeg", "-r200");

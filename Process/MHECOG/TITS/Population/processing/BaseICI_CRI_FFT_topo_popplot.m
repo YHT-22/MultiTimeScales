@@ -9,9 +9,9 @@
         trialsECOG = trialsECOG_pop(tIndex);
         trialsECOG_Filtered = trialsECOG_pop_Filtered(tIndex);
 
-        chMean{dIndex} = cell2mat(cellfun(@mean , changeCellRowNum(trialsECOG), 'UniformOutput', false));
+        chMean{dIndex} = cell2mat(cellfun(@mean, changeCellRowNum(trialsECOG), 'UniformOutput', false));
         chStd = cell2mat(cellfun(@(x) std(x)/sqrt(length(tIndex)), changeCellRowNum(trialsECOG), 'UniformOutput', false));
-        chMean_filter{dIndex} = cell2mat(cellfun(@mean , changeCellRowNum(trialsECOG_Filtered), 'UniformOutput', false));
+        chMean_filter{dIndex} = cell2mat(cellfun(@mean, changeCellRowNum(trialsECOG_Filtered), 'UniformOutput', false));
         chStd_filter = cell2mat(cellfun(@(x) std(x)/sqrt(length(tIndex)), changeCellRowNum(trialsECOG_Filtered), 'UniformOutput', false));
 
         %% compute CRI

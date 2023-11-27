@@ -1,13 +1,13 @@
 clear;
 %% RLA_seEffect_Oddball
 meanNum1 = 30;
-devType = 10;
-SAVEPATH = 'D:\yht\parameters';
+devType = 5;
+SAVEPATH = 'D:\ratClickTrain\parameters';
 orders = repmat((1:devType)', meanNum1, 1);
 atts = repmat((ones(devType, 1) * 21.2), meanNum1, 1); %
 idx =randperm(meanNum1 * devType);
-params.orderRLAseEffect_odd = orders(idx);
-params.attRLAseEffect_odd = atts(idx);
+params.order_G5_30 = orders(idx);
+params.att_G5_30 = atts(idx);
 generateParamsFiles(SAVEPATH, params);
 
 %% RLA_seEffect_Single

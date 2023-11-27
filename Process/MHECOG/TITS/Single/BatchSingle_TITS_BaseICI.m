@@ -23,7 +23,7 @@ elseif MonkeyID == 2
 %         'xx20230424'};
 %     MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat\xiaoxiao\';
     DATEStrs = {'xx20230425_1', 'xx20230425_2', 'xx20230505', 'xx20230508_1', 'xx20230508_2',...
-        'xx20230509_2', 'xx20230510_1', 'xx20230510_2', 'xx20230516'};
+        'xx20230509_2', 'xx20230510_3', 'xx20230510_2', 'xx20230516'};
     MATPATH = 'I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\Mat_Nodft\xiaoxiao\';    
 end
 MATPATHs = cellfun(@(x) [MATPATH, x, '\'], DATEStrs, "UniformOutput", false);

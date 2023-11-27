@@ -11,11 +11,11 @@ AREANAME = AREANAME(params.posIndex);
 Protocol = 'TITS_in_Osc';
 
 if MonkeyID == 1
-    [~,~,RawMessage] = xlsread('I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\ClickTrain_TITS.xlsx',...
+    [~,~,RawMessage] = xlsread('G:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\ClickTrain_TITS.xlsx',...
         'Oscillation', 'A2:D4');
     monkeyStr = 'CC';
 elseif MonkeyID == 2
-    [~,~,RawMessage] = xlsread('I:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\ClickTrain_TITS.xlsx',...
+    [~,~,RawMessage] = xlsread('G:\DATA_202303_MonkeyECOG_ClickTrain_TimeIntinSynchron\ClickTrain_TITS.xlsx',...
         'Oscillation', 'A5:D9');   
     monkeyStr = 'XX';  
 end

@@ -16,6 +16,4 @@ for dIndex = 1:length(devType)
     CRI(dIndex).rsp = changeCellRowNum(amp);
     CRI(dIndex).base = changeCellRowNum(rmsSpon);
 
-
 end
-close all
